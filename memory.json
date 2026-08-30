@@ -1,0 +1,32 @@
+[
+  {
+    "id": "m1",
+    "tag": "pref",
+    "text": "Prefers dark mode in editor",
+    "ts": "2026-08-28T09:12:00Z"
+  },
+  {
+    "id": "m2",
+    "tag": "project",
+    "text": "Working on 'Orion' \u2014 a real-time analytics dashboard app",
+    "ts": "2026-08-28T09:14:00Z"
+  },
+  {
+    "id": "m3",
+    "tag": "work",
+    "text": "Morning stand-up at 10:00 with the design team",
+    "ts": "2026-08-28T09:15:00Z"
+  },
+  {
+    "id": "m4",
+    "tag": "pref",
+    "text": "Coffee order: oat milk cappuccino, no sugar",
+    "ts": "2026-08-28T09:16:00Z"
+  },
+  {
+    "id": "m5",
+    "tag": "note",
+    "text": "Demo for the Orion dashboard is due this Friday",
+    "ts": "2026-08-29T20:00:00Z"
+  }
+]

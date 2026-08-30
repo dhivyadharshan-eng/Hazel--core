@@ -1,0 +1,6 @@
+[
+  {"id": "c1", "date": "2026-08-30T09:00:00", "title": "Deep work — Orion auth", "tag": "focus"},
+  {"id": "c2", "date": "2026-08-30T10:00:00", "title": "Stand-up with design team", "tag": "meeting"},
+  {"id": "c3", "date": "2026-08-30T13:30:00", "title": "Lunch with Priya", "tag": "social"},
+  {"id": "c4", "date": "2026-08-30T15:00:00", "title": "Code review session", "tag": "review"}
+]

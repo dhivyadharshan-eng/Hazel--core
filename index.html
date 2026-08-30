@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hazel Core — Your AI Control Layer</title>
+<style>
+  :root{
+    --bg:#05070f;--bg2:#0a0e1c;--panel:rgba(18,24,44,.75);--panel2:rgba(26,34,60,.6);
+    --line:rgba(120,160,255,.14);--line2:rgba(120,160,255,.28);--txt:#dfe7ff;--muted:#8b97bf;
+    --accent:#6b7cff;--accent2:#00e0c6;--accent3:#ff6bb0;--warn:#ffb454;--danger:#ff5d6c;--ok:#3ddc97;
+    --shadow:0 24px 70px rgba(0,0,0,.55);--radius:18px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{font-family:var(--font);color:var(--txt);
+    background:
+      radial-gradient(1200px 700px at 15% -10%, rgba(107,124,255,.20), transparent 60%),
+      radial-gradient(1000px 600px at 105% 20%, rgba(0,224,198,.14), transparent 55%),
+      radial-gradient(900px 700px at 60% 120%, rgba(255,107,176,.12), transparent 60%),
+      var(--bg);background-attachment:fixed;overflow:hidden}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:linear-gradient(rgba(120,160,255,.045) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(120,160,255,.045) 1px,transparent 1px);background-size:44px 44px;
+    mask-image:radial-gradient(ellipse at 50% 0%, #000 30%, transparent 80%)}
+  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;mix-blend-mode:overlay;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 3px)}
+  #app{position:relative;z-index:1;display:grid;grid-template-columns:236px 1fr 340px;grid-template-rows:auto 1fr;height:100vh;gap:0}
+
+  /* TOP BAR */
+  .topbar{grid-column:1/-1;height:64px;display:flex;align-items:center;gap:18px;padding:0 20px;
+    border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(12,16,32,.9),rgba(10,14,28,.55));backdrop-filter:blur(12px)}
+  .brand{display:flex;align-items:center;gap:12px}
+  .halo{width:40px;height:40px;border-radius:14px;position:relative;flex:0 0 auto;
+    background:conic-gradient(from 180deg,#6b7cff,#00e0c6,#ff6bb0,#6b7cff);
+    box-shadow:0 0 22px rgba(107,124,255,.5), inset 0 0 12px rgba(0,0,0,.3);animation:spin 14s linear infinite}
+  .halo::after{content:"";position:absolute;inset:4px;border-radius:11px;background:var(--bg2)}
+  .halo .core{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;
+    font-weight:800;font-size:15px;color:#fff;text-shadow:0 0 10px #6b7cff}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .brand h1{font-size:17px;letter-spacing:.5px;font-weight:800}
+  .brand .sub{font-size:10.5px;color:var(--accent2);letter-spacing:2.5px;text-transform:uppercase;font-family:var(--mono)}
+  .searchbox{flex:1 1 auto;display:flex;align-items:center;gap:9px;max-width:460px;min-width:140px;margin-left:30px;
+    background:rgba(10,14,28,.7);border:1px solid var(--line);border-radius:12px;padding:8px 14px;color:var(--muted)}
+  .searchbox input{background:transparent;border:0;outline:0;color:var(--txt);font-size:13px;width:100%}
+  .searchbox input::placeholder{color:var(--muted)}
+  .gauges{display:flex;gap:16px;margin-left:auto;align-items:center}
+  .gauge{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .gauge .dot{width:8px;height:8px;border-radius:50%;box-shadow:0 0 8px currentColor}
+  .gauge .bar{width:52px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+  .gauge .bar i{display:block;height:100%;border-radius:3px;background:currentColor;transition:width .6s ease}
+  #gCpu{color:#6b7cff}#gMem{color:#00e0c6}#gNet{color:#ff6bb0}
+  .status-chip{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 12px;border-radius:20px;
+    border:1px solid var(--line2);background:var(--panel);color:var(--accent2);font-family:var(--mono)}
+  .status-chip .pulse{width:7px;height:7px;border-radius:50%;background:var(--ok);animation:pulse 1.6s infinite}
+  .status-chip .pulse.demo{background:var(--accent);animation:pulse 1.6s infinite}
+  .status-chip .pulse.offline{background:var(--danger);animation:none}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(61,220,151,.5)}50%{box-shadow:0 0 0 6px rgba(61,220,151,0)}}
+  .llm-chip{display:none;align-items:center;gap:6px;font-size:10px;padding:5px 10px;border-radius:14px;
+    border:1px solid var(--line2);color:var(--warn);font-family:var(--mono)}
+  .llm-chip.on{display:flex;color:var(--accent2)}
+  .voice-chip{display:flex;align-items:center;gap:6px;font-size:10px;padding:5px 10px;border-radius:14px;
+    border:1px solid var(--line2);color:var(--accent2);font-family:var(--mono);transition:.15s}
+  .voice-chip.off{opacity:.55;color:var(--muted)}
+  .voice-chip .pulse{width:6px;height:6px;border-radius:50%;background:var(--accent2);animation:pulse 1.6s infinite}
+  .voice-chip.off .pulse{animation:none;background:var(--muted)}
+  .wake-active{background:rgba(255,107,176,.12);border-color:var(--accent3)!important;color:var(--accent3)!important}
+  @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(255,107,176,.45)}50%{box-shadow:0 0 0 8px rgba(255,107,176,0)}}
+
+  /* NAV */
+  .nav{border-right:1px solid var(--line);padding:18px 14px;overflow-y:auto;background:rgba(9,13,28,.5);backdrop-filter:blur(8px)}
+  .nav h3{font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin:14px 8px 8px;font-family:var(--mono)}
+  .mode{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;cursor:pointer;color:var(--muted);
+    font-size:13.5px;transition:.15s;border:1px solid transparent;position:relative}
+  .mode:hover{background:var(--panel);color:var(--txt)}
+  .mode.active{background:linear-gradient(90deg,rgba(107,124,255,.18),transparent);color:#fff;border-color:var(--line2)}
+  .mode.active::before{content:"";position:absolute;left:-14px;top:0;bottom:0;width:3px;background:var(--accent);
+    box-shadow:0 0 14px var(--accent);border-radius:0 3px 3px 0}
+  .mode .ic{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(107,124,255,.12);font-size:13px}
+  .mode .meta{line-height:1.2}
+  .mode .meta small{display:block;font-size:10px;color:var(--muted);opacity:.8}
+  .mode.active .meta small{color:var(--accent2)}
+  .side-link{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;color:var(--muted);font-size:13px;transition:.15s}
+  .side-link:hover,.side-link.active{background:var(--panel);color:var(--txt)}
+  .side-link .badge{margin-left:auto;font-size:10px;padding:2px 7px;border-radius:10px;background:var(--accent);color:#fff}
+
+  /* MAIN */
+  .main{display:flex;flex-direction:column;min-width:0;position:relative}
+  .chathead{display:flex;align-items:center;gap:14px;padding:16px 26px;border-bottom:1px solid var(--line)}
+  .avatar{width:46px;height:46px;border-radius:16px;background:linear-gradient(160deg,#6b7cff,#00e0c6);position:relative;flex:0 0 auto;box-shadow:0 0 24px rgba(107,124,255,.4)}
+  .avatar .wave{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:3px}
+  .avatar .wave i{width:3px;background:#fff;border-radius:3px;opacity:.9}
+  .av-name{font-weight:700;font-size:15px}
+  .av-status{font-size:11px;color:var(--accent2);display:flex;align-items:center;gap:6px}
+  .av-status .dot{width:6px;height:6px;border-radius:50%;background:var(--ok)}
+  .chathead .tools{display:flex;gap:8px;margin-left:auto}
+  .tools .tbtn{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--muted);font-size:12px;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:7px}
+  .tools .tbtn:hover{color:var(--txt);border-color:var(--line2)}
+  .tools .tbtn.dim{opacity:.5}
+
+  .chat{flex:1;overflow-y:auto;padding:28px 26px;display:flex;flex-direction:column;gap:20px}
+  .chat::-webkit-scrollbar{width:8px}.chat::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px}
+  .msg{display:flex;gap:12px;max-width:78%;animation:rise .35s ease}
+  .msg .mrow{line-height:1.55;font-size:14px}
+  .msg.user{align-self:flex-end;flex-direction:row-reverse}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .bubble{padding:12px 16px;border-radius:16px;position:relative}
+  .msg.assistant .bubble{background:var(--panel);border:1px solid var(--line);border-bottom-left-radius:4px}
+  .msg.user .bubble{background:linear-gradient(135deg,#5a6cff,#7b6cff);border:1px solid rgba(255,255,255,.15);border-bottom-right-radius:4px;color:#fff;box-shadow:0 6px 20px rgba(91,108,255,.35)}
+  .msg .who{font-size:10.5px;color:var(--muted);margin-bottom:4px;letter-spacing:.5px;font-family:var(--mono)}
+  .msg.user .who{text-align:right;color:rgba(255,255,255,.7)}
+  .bubble pre{background:rgba(0,0,0,.4);padding:10px;border-radius:8px;overflow-x:auto;font-family:var(--mono);font-size:12px;margin:8px 0;border:1px solid var(--line);white-space:pre-wrap}
+  .bubble code{font-family:var(--mono);background:rgba(0,0,0,.35);padding:2px 5px;border-radius:5px;font-size:12.5px}
+  .bubble ul{margin:6px 0 6px 18px}.bubble li{margin:3px 0}
+  .bubble .hl{color:var(--accent2)}.bubble .warn{color:var(--warn)}.bubble .accent{color:var(--accent)}.bubble .muted{color:var(--muted)}
+  .bubble a{color:var(--accent)}
+
+  .steps{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+  .step{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:7px 11px;border-radius:9px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+  .step .st{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;flex:0 0 auto}
+  .step.pending .st{background:rgba(255,255,255,.08);color:var(--muted)}
+  .step.done .st{background:var(--ok);color:#04231a}
+  .step.running .st{background:var(--accent);color:#fff;animation:spin .8s linear infinite}
+  .step.hold .st{background:var(--warn);color:#2a1600}
+  .step.error .st{background:var(--danger);color:#2a0000}
+  .step.done{color:var(--txt)}.step.running{color:var(--accent)}.step.pending{color:var(--muted)}
+  .step.hold{color:var(--warn)}.step.error{color:var(--danger)}
+
+  .toolrow{font-family:var(--mono);font-size:11px;color:var(--muted);margin:3px 2px;display:flex;gap:7px;align-items:center}
+  .toolrow .tt{color:var(--accent2)}.toolrow .ts{color:var(--muted)}
+
+  .typing{display:inline-flex;gap:4px;align-items:center;padding:4px 2px}
+  .typing i{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce 1.2s infinite}
+  .typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+  @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+  .pending-approval{border:1px solid var(--warn);background:rgba(255,180,84,.1);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:12.5px}
+  .pending-approval .abtn{background:var(--warn);color:#2a1600;border:0;border-radius:8px;padding:7px 14px;font-weight:700;cursor:pointer;margin-right:6px;font-family:var(--font)}
+
+  .composer{padding:16px 26px 22px;border-top:1px solid var(--line);background:linear-gradient(0deg,rgba(8,12,26,.7),transparent)}
+  .composer .inner{display:flex;align-items:flex-end;gap:10px;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:10px 12px;box-shadow:var(--shadow)}
+  .composer textarea{flex:1;background:transparent;border:0;outline:0;color:var(--txt);resize:none;font-size:14px;line-height:1.5;font-family:var(--font);max-height:120px}
+  .composer textarea::placeholder{color:var(--muted)}
+  .sendbtn{width:42px;height:42px;border-radius:12px;border:0;cursor:pointer;background:linear-gradient(135deg,#6b7cff,#00e0c6);color:#fff;font-size:17px;flex:0 0 auto;box-shadow:0 6px 20px rgba(107,124,255,.4);transition:.15s}
+  .sendbtn:hover{transform:translateY(-1px)}
+  .micbtn{width:42px;height:42px;border-radius:12px;border:1px solid var(--line2);background:var(--panel);color:var(--accent2);cursor:pointer;font-size:17px;flex:0 0 auto;transition:.15s}
+  .micbtn.listening{border-color:var(--danger);color:var(--danger);animation:mic 1s ease-in-out infinite;box-shadow:0 0 16px rgba(255,93,108,.4)}
+  @keyframes mic{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+  .hint{font-size:10.5px;color:var(--muted);margin-top:8px;display:flex;justify-content:space-between;font-family:var(--mono)}
+  .hint b{color:var(--accent2)}
+
+  /* RIGHT */
+  .right{border-left:1px solid var(--line);padding:20px 18px;overflow-y:auto;background:rgba(9,13,28,.5);backdrop-filter:blur(8px)}
+  .right::-webkit-scrollbar{width:8px}.right::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px}
+  .panel-tabs{display:flex;gap:6px;margin-bottom:16px;background:var(--panel);padding:5px;border-radius:12px;border:1px solid var(--line)}
+  .panel-tabs button{flex:1;background:transparent;border:0;color:var(--muted);font-size:11.5px;padding:7px 4px;border-radius:8px;cursor:pointer;font-family:var(--mono);letter-spacing:.3px}
+  .panel-tabs button.active{background:linear-gradient(135deg,rgba(107,124,255,.35),rgba(0,224,198,.25));color:#fff}
+  .section-title{font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;font-family:var(--mono);margin:18px 4px 10px;display:flex;align-items:center;gap:8px}
+  .section-title::after{content:"";flex:1;height:1px;background:var(--line)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .card .k{font-size:11px;color:var(--muted);letter-spacing:.4px}
+  .card .v{font-size:14.5px;color:var(--txt);margin-top:3px;font-weight:500}
+  .card .meta{font-size:11px;color:var(--muted);margin-top:3px}
+  .card.clickable{cursor:pointer;transition:.15s}
+  .card.clickable:hover{border-color:var(--line2);transform:translateY(-1px)}
+  .memlist{display:flex;flex-direction:column;gap:8px}
+  .mem{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:10px 12px;font-size:12.5px;display:flex;gap:10px;align-items:flex-start;color:var(--txt)}
+  .mem .tag{font-family:var(--mono);font-size:9.5px;color:var(--accent2);background:rgba(0,224,198,.1);padding:2px 6px;border-radius:6px;flex:0 0 auto;margin-top:1px}
+  .mem .del{margin-left:auto;color:var(--muted);cursor:pointer;font-size:13px;flex:0 0 auto}
+  .mem .del:hover{color:var(--danger)}
+  .task{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
+  .task:last-child{border-bottom:0}
+  .task .ck{width:18px;height:18px;border-radius:6px;border:2px solid var(--line2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;flex:0 0 auto}
+  .task.done .ck{background:var(--ok);border-color:var(--ok);color:#04231a}
+  .task .txt{font-size:13px;color:var(--txt)}
+  .task.done .txt{text-decoration:line-through;color:var(--muted)}
+  .task .pri{margin-left:auto;font-size:9px;padding:2px 7px;border-radius:6px;font-family:var(--mono)}
+  .pri.high{background:rgba(255,93,108,.16);color:var(--danger)}
+  .pri.med{background:rgba(255,180,84,.16);color:var(--warn)}
+  .pri.low{background:rgba(61,220,151,.14);color:var(--ok)}
+  .ev{display:flex;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line)}
+  .ev:last-child{border-bottom:0}
+  .ev .date{width:46px;text-align:center;flex:0 0 auto}
+  .ev .date .d{font-size:20px;font-weight:800;color:var(--accent)}
+  .ev .date .m{font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .ev .info{font-size:13px;color:var(--txt)}
+  .ev .info .t{font-size:11px;color:var(--accent2);font-family:var(--mono)}
+  .ev.soon{background:linear-gradient(90deg,rgba(255,107,176,.12),transparent);border-left:2px solid var(--accent3)}
+  .file{display:flex;align-items:center;gap:11px;padding:9px 4px;border-bottom:1px solid var(--line)}
+  .file:last-child{border-bottom:0}
+  .file .fi{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;background:rgba(107,124,255,.14)}
+  .file .fn{font-size:13px;color:var(--txt)}
+  .file .fp{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
+  .file .tag{margin-left:auto;font-size:9px;font-family:var(--mono);padding:2px 7px;border-radius:6px;background:rgba(107,124,255,.16);color:var(--accent)}
+  .notif{display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--txt)}
+  .notif:last-child{border-bottom:0}
+  .notif .ni{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:14px;flex:0 0 auto}
+  .notif .nm{color:var(--muted);font-size:10.5px;font-family:var(--mono)}
+  .notif.warn .ni{background:rgba(255,180,84,.16)}
+  .notif.ok .ni{background:rgba(61,220,151,.15)}
+  .notif.alert .ni{background:rgba(255,93,108,.16)}
+  .empty{color:var(--muted);font-size:12.5px;padding:18px 4px;text-align:center;line-height:1.6;border:1px dashed var(--line);border-radius:12px}
+
+  .overlay{position:fixed;inset:0;background:rgba(3,5,12,.7);backdrop-filter:blur(4px);z-index:50;display:none;align-items:center;justify-content:center}
+  .overlay.show{display:flex}
+  .modal{width:min(520px,92vw);background:var(--bg2);border:1px solid var(--line2);border-radius:20px;padding:26px;box-shadow:var(--shadow);animation:pop .25s ease}
+  @keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+  .modal h2{font-size:18px;margin-bottom:6px}
+  .modal p{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .field{margin-bottom:12px}
+  .field label{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-family:var(--mono);display:block;margin-bottom:6px}
+  .field input,.field select{width:100%;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:11px 13px;color:var(--txt);font-size:14px;outline:0;font-family:var(--font)}
+  .field input:focus,.field select:focus{border-color:var(--accent)}
+  .modal .row{display:flex;gap:10px;margin-top:8px}
+  .btn{flex:1;padding:12px;border-radius:12px;border:0;cursor:pointer;font-size:14px;font-weight:600;font-family:var(--font)}
+  .btn.primary{background:linear-gradient(135deg,#6b7cff,#00e0c6);color:#fff}
+  .btn.ghost{background:var(--panel);border:1px solid var(--line);color:var(--txt)}
+  .waveform{display:flex;align-items:flex-end;gap:3px;height:34px;margin-left:auto}
+  .waveform i{width:3px;border-radius:3px;background:linear-gradient(180deg,#6b7cff,#00e0c6);animation:wave 1.1s ease-in-out infinite}
+  @keyframes wave{0%,100%{height:8px}50%{height:32px}}
+  .toast{position:fixed;bottom:24px;right:24px;background:var(--bg2);border:1px solid var(--line2);padding:12px 18px;border-radius:12px;font-size:13px;box-shadow:var(--shadow);transform:translateY(20px);opacity:0;transition:.3s;z-index:60;color:var(--txt)}
+  .toast.show{transform:none;opacity:1;border-color:var(--accent)}
+  .toast .t{color:var(--accent2);font-family:var(--mono);font-size:10.5px;letter-spacing:1px;margin-bottom:3px}
+  .chip-online{color:var(--accent2)}
+  .mobile-nav{display:none}
+  @media(max-width:1080px){
+    #app{grid-template-columns:1fr}
+    .nav,.right{display:none}
+    #app.nav-open .nav{display:block;position:absolute;top:0;bottom:0;left:0;z-index:40;width:260px}
+    #app.right-open .right{display:block;position:absolute;top:0;bottom:0;right:0;z-index:40;width:300px}
+    .mobile-nav{display:flex;gap:8px}
+  }
+  @media(max-width:760px){
+    .gauges{display:none}
+    .searchbox{margin-left:10px;max-width:none}
+    .brand .sub{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><div class="halo"><div class="core">H</div></div>
+      <div><h1>HAZEL <span style="color:var(--accent2)">CORE</span></h1><div class="sub">AI Control Layer</div></div>
+    </div>
+    <div class="searchbox"><span>⌘</span><input id="globalSearch" placeholder="Search files, tasks, memory, calendar…"><span id="searchHint" class="muted"></span></div>
+    <div class="llm-chip" id="llmChip">🤖 LLM: <span id="llmModel"></span></div>
+    <div class="voice-chip" id="voiceChip"><span class="pulse"></span><span>Voice</span> <span id="voiceEngine">…</span></div>
+    <div class="gauges">
+      <div class="gauge" id="gCpu"><span class="dot"></span><div class="bar"><i style="width:22%"></i></div><span>CPU</span></div>
+      <div class="gauge" id="gMem"><span class="dot"></span><div class="bar"><i style="width:38%"></i></div><span>MEM</span></div>
+      <div class="gauge" id="gNet"><span class="dot"></span><div class="bar"><i style="width:55%"></i></div><span>NET</span></div>
+    </div>
+    <div class="status-chip"><span class="pulse" id="statusPulse"></span><span id="statusLabel">ONLINE</span></div>
+    <div class="mobile-nav"></div>
+  </header>
+
+  <nav class="nav" id="nav">
+    <h3>Hazel Modes</h3><div id="modeList"></div>
+    <h3>Core Tools</h3><div id="toolLinks"></div>
+    <h3>Quick Actions</h3>
+    <div class="side-link" data-cmd="Good morning Hazel, what's on my schedule today?"><span class="ic">☀️</span> Morning brief</div>
+    <div class="side-link" data-cmd="prepare everything I need to work on my project"><span class="ic">🚀</span> Prep workspace</div>
+    <div class="side-link" data-cmd="what's on my schedule today?"><span class="ic">📅</span> Show schedule</div>
+    <div class="side-link" data-cmd="give me a summary of my project status"><span class="ic">📊</span> Project status</div>
+    <div class="side-link" data-cmd="research what is machine learning"><span class="ic">🌐</span> Web research</div>
+  </nav>
+
+  <main class="main">
+    <div class="chathead">
+      <div class="avatar"><div class="wave" id="avatarWave"></div></div>
+      <div><div class="av-name">Hazel</div><div class="av-status"><span class="dot"></span><span id="modeStatus">Assistant Mode · Live backend</span></div></div>
+      <div class="waveform" id="headerWave"></div>
+      <div class="tools">
+        <button class="tbtn" id="voiceBtn" title="Toggle spoken replies">🔊 Voice</button>
+        <button class="tbtn" id="micToggle" title="Microphone">🎙️ Hey Hazel</button>
+        <button class="tbtn" id="permBtn">🔐 Permissions</button>
+      </div>
+    </div>
+    <div class="chat" id="chat"></div>
+    <div class="composer">
+      <div class="inner">
+        <button class="micbtn" id="micBtn" title="Speak">🎙️</button>
+        <textarea id="input" rows="1" placeholder="Tell Hazel what you want… e.g. “research what is machine learning”"></textarea>
+        <button class="sendbtn" id="sendBtn" title="Send">➤</button>
+      </div>
+      <div class="hint"><span><b>TRY:</b> research what is machine learning · prepare my workspace</span><span><b>ENTER</b> send · <b>SHIFT+ENTER</b> newline</span></div>
+    </div>
+  </main>
+
+  <aside class="right" id="right">
+    <div class="panel-tabs">
+      <button data-tab="memory" class="active">Memory</button>
+      <button data-tab="tasks">Tasks</button>
+      <button data-tab="cal">Calendar</button>
+      <button data-tab="files">Files</button>
+      <button data-tab="alerts">Alerts</button>
+    </div>
+    <div id="tab-memory">
+      <div class="section-title">Long-term memory</div>
+      <div class="card"><div class="k">Retained facts</div><div class="v" id="memCount">0</div><div class="meta">Only what you explicitly let Hazel keep · persisted server-side</div></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn ghost" id="addMemBtn" style="flex:1">＋ Remember something</button>
+        <button class="btn ghost" id="clearMemBtn" style="flex:1">Clear</button>
+      </div>
+      <div class="memlist" id="memList"></div>
+    </div>
+    <div id="tab-tasks" style="display:none">
+      <div class="section-title">Tasks · <span id="taskCount">0</span></div>
+      <button class="btn ghost" id="addTaskBtn" style="width:100%;margin-bottom:10px">＋ Add task</button>
+      <div id="taskList"></div>
+    </div>
+    <div id="tab-cal" style="display:none">
+      <div class="section-title">Calendar</div><div id="calList"></div>
+    </div>
+    <div id="tab-files" style="display:none">
+      <div class="section-title">Workspace</div>
+      <div id="fileList"></div>
+    </div>
+    <div id="tab-alerts" style="display:none">
+      <div class="section-title">Notifications</div><div id="notifList"></div>
+    </div>
+    <div class="section-title">System</div>
+    <div class="card">
+      <div class="k">Hazel Core · <span id="verLabel">v1.0</span></div>
+      <div class="v" style="font-size:12px;color:var(--muted)">Backend engine active. <span style="color:var(--accent2)" id="toolCount">—</span> tools.</div>
+      <div class="meta" id="sysMeta">Memory · Web · Files · Code · Calendar · Automation</div>
+    </div>
+  </aside>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2 id="mTitle">Add to memory</h2><p id="mDesc">Store a fact Hazel will remember about you.</p>
+    <div class="field"><label id="mLabel">Fact</label><input id="mInput" placeholder="e.g. I prefer dark mode in my editor"></div>
+    <div class="field" id="mSelectField" style="display:none"><label>Priority</label><select id="mSelect"><option>high</option><option>med</option><option>low</option></select></div>
+    <div class="row"><button class="btn ghost" id="mCancel">Cancel</button><button class="btn primary" id="mSave">Save</button></div>
+  </div>
+</div>
+<div class="toast" id="toast"><div class="t" id="toastTitle">HAZEL</div><div id="toastMsg"></div></div>
+
+<script>
+/* =========================================================================
+   HAZEL CORE — resilient frontend.
+   - Detects the backend on boot.
+     * Backend reachable  -> LIVE mode (real web search, server voice, tools)
+     * Backend unreachable-> DEMO mode (fully working, locally seeded; no
+       network required). Everything still works: search, memory, tasks,
+       calendar, files, chat, voice (browser), wake word.
+   Regardless of mode the UI never appears broken or "just offline".
+   ========================================================================= */
+(function(){
+  "use strict";
+  const API = '';
+  const $ = s => document.querySelector(s);
+  const chat = $("#chat"), input = $("#input");
+
+  /* ---------- safe storage (localStorage may be blocked in sandboxed previews) ---------- */
+  const _mem = new Map();
+  const storage = {
+    get(k){ try{ return localStorage.getItem(k); }catch(e){ return _mem.get(k); } },
+    set(k,v){ try{ localStorage.setItem(k,v); }catch(e){ _mem.set(k,v); } },
+    del(k){ try{ localStorage.removeItem(k); }catch(e){ _mem.delete(k); } }
+  };
+  function load(k, fb){ try{ const v = storage.get('hazel_'+k); return v?JSON.parse(v):fb; }catch(e){ return fb; } }
+  function save(k, v){ try{ storage.set('hazel_'+k, JSON.stringify(v)); }catch(e){} }
+
+  /* ---------- state ---------- */
+  let state = { mode:'assistant', voiceOn:true, voiceEngine:'browser', bootMode:'detect' };
+  let memory = [], tasks = [], cal = [], files = [], notifs = [];
+  let busy = false, lastJobId = null;
+  let curAudio = null;
+
+  /* ---------- demo seed (used only when the backend is unreachable) ---------- */
+  const DEMO = {
+    memory: [
+      {id:'dm1', tag:'pref',    text:'Prefers dark mode in editor'},
+      {id:'dm2', tag:'project', text:"Working on 'Orion' — a real-time analytics dashboard app"},
+      {id:'dm3', tag:'work',    text:'Morning stand-up at 10:00 with the design team'},
+      {id:'dm4', tag:'pref',    text:'Coffee order: oat milk cappuccino, no sugar'},
+      {id:'dm5', tag:'note',    text:'Demo for the Orion dashboard is due this Friday'}
+    ],
+    tasks: [
+      {id:'dt1', text:'Refactor auth module (Orion)', done:false, pri:'high'},
+      {id:'dt2', text:'Review PR #184 — data layer', done:false, pri:'med'},
+      {id:'dt3', text:'Prepare demo for Friday review', done:false, pri:'med'},
+      {id:'dt4', text:"Respond to Priya's email", done:true, pri:'low'}
+    ],
+    cal: [
+      {id:'dc1', date: todayAt(9,0),  title:'Deep work — Orion auth', tag:'focus'},
+      {id:'dc2', date: todayAt(10,0), title:'Stand-up with design team', tag:'meeting'},
+      {id:'dc3', date: todayAt(13,30),title:'Lunch with Priya', tag:'social'},
+      {id:'dc4', date: todayAt(15,0), title:'Code review session', tag:'review'},
+      {id:'dc5', date: inDays(1,10,0),   title:'Orion demo review', tag:'milestone'},
+      {id:'dc6', date: inDays(1,14,30),  title:'Sprint planning', tag:'meeting'},
+      {id:'dc7', date: inDays(4,17,0),   title:'Deploy Orion to staging', tag:'milestone'}
+    ],
+    files: [
+      {name:'orion-dashboard', path:'orion',   type:'dir',  size:null, icon:'📁'},
+      {name:'app.js',          path:'orion/src', type:'file', size:820,  icon:'📄'},
+      {name:'auth.service.js', path:'orion/src/services', type:'file', size:1130, icon:'📄'},
+      {name:'auth.test.js',    path:'orion/src/services', type:'file', size:310,  icon:'📄'},
+      {name:'LiveChart.js',    path:'orion/src/components', type:'file', size:240, icon:'📄'},
+      {name:'README.md',       path:'orion',   type:'file', size:520,  icon:'📝'}
+    ],
+    content: {
+      'orion/README.md': 'Demo for the Orion dashboard is due this Friday.\n\n## Notes for next session\n1. Finish auth refactor\n2. Run the test suite\n3. Wire /api/streaming WebSocket',
+      'orion/src/services/auth.service.js': '// auth.service.js — token validation & session management\nconst TOKEN_TTL_MS = 30 * 60 * 1000;\nfunction authService() {\n  return { mode: "session-jwt", TTL_MS: TOKEN_TTL_MS };\n}\nmodule.exports = { authService };'
+    },
+    notifs: [
+      {id:'dn1', type:'ok',   icon:'✅', text:'CI passed for orion-dashboard', from:'GitHub'},
+      {id:'dn2', type:'alert',icon:'⚠️', text:'Deploy pipeline warning: us-east-1 latency', from:'CloudWatch'},
+      {id:'dn3', type:'warn', icon:'🗓️', text:'Stand-up in 10 minutes', from:'Calendar'},
+      {id:'dn4', type:'ok',   icon:'📨', text:'Priya replied: “looks great, ship it”', from:'Mail'}
+    ]
+  };
+  function todayAt(h, m){ const d = new Date(); d.setHours(h,m,0,0); return d.toISOString(); }
+  function inDays(n, h, m){ const d = new Date(); d.setDate(d.getDate()+n); d.setHours(h,m,0,0); return d.toISOString(); }
+
+  /* ---------- helpers ---------- */
+  function esc(s){ return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function fmtBytes(n){ if(n<1024) return n+' B'; if(n<1024*1024) return (n/1024).toFixed(0)+' KB'; return (n/1024/1024).toFixed(1)+' MB'; }
+  function shortTime(iso){ try{ const d=new Date(iso); return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }catch(e){ return iso||''; } }
+  function toast(title, msg){
+    $("#toastTitle").textContent='HAZEL · '+title; $("#toastMsg").innerHTML=msg;
+    const t=$("#toast"); t.classList.add('show'); clearTimeout(window.__toast);
+    window.__toast=setTimeout(()=>t.classList.remove('show'),2600);
+  }
+  async function api(path, opts={}){
+    const res = await fetch(API+path, { method: opts.method||'GET', headers:{'Content-Type':'application/json'}, body: opts.body?JSON.stringify(opts.body):undefined });
+    const text = await res.text();
+    try{ return JSON.parse(text); }catch(e){ return { raw:text }; }
+  }
+  function setStatus(label, cls){
+    $("#statusLabel").textContent = label;
+    const p=$("#statusPulse"); p.className='pulse';
+    if(cls==='demo') p.classList.add('demo');
+    if(cls==='offline') p.classList.add('offline');
+  }
+
+  /* ---------- backend detection ---------- */
+  function detectBackend(){
+    return new Promise((res)=>{
+      let ctl=null; if('AbortController' in window) ctl=new AbortController();
+      const timer=setTimeout(()=>{ if(ctl)try{ctl.abort()}catch(e){}; res(false); },2500);
+      (fetch(API+'/api/health', {signal:ctl?ctl.signal:undefined}).then(r=>r.json())
+        .then(j=>{ clearTimeout(timer); res(!!(j&&j.ok)); })
+        .catch(()=>{ clearTimeout(timer); res(false); }));
+    });
+  }
+
+  /* ---------- modes ---------- */
+  const MODES = {
+    assistant:{label:'Assistant',icon:'💬',desc:'Everyday conversations & tasks',status:'Assistant Mode'},
+    developer:{label:'Developer',icon:'👨‍💻',desc:'Coding, debugging, projects',status:'Developer Mode'},
+    research:{label:'Research',icon:'🔎',desc:'Deep web research & summaries',status:'Research Mode'},
+    automation:{label:'Automation',icon:'⚙️',desc:'Scheduled workflows',status:'Automation Mode'},
+    computer:{label:'Computer',icon:'🖥️',desc:'Control your workspace',status:'Computer Mode'},
+    focus:{label:'Focus',icon:'🧠',desc:'Concentrate on one project',status:'Focus Mode'},
+    alert:{label:'Alert',icon:'🚨',desc:'Important events & system status',status:'Alert Mode'}
+  };
+  function renderModes(){
+    const w=$("#modeList"); w.innerHTML='';
+    Object.keys(MODES).forEach(k=>{
+      const m=MODES[k]; const el=document.createElement('div');
+      el.className='mode'+(state.mode===k?' active':'');
+      el.innerHTML=`<div class="ic">${m.icon}</div><div class="meta">${m.label}<small>${m.desc}</small></div>`;
+      el.onclick=()=>setMode(k); w.appendChild(el);
+    });
+  }
+  function setMode(k){
+    state.mode=k; renderModes();
+    $("#modeStatus").textContent=MODES[k].status + (state.bootMode==='demo'?' · local demo':' · live backend');
+    $("#statusLabel").textContent = state.bootMode==='demo' ? 'DEMO' : MODES[k].label.toUpperCase();
+    addAssistant(`Entering <span class="hl">${MODES[k].label} Mode</span>. ${MODES[k].desc}.`);
+  }
+  function renderToolLinks(){
+    const w=$("#toolLinks"); w.innerHTML='';
+    [["💬 Chat","","what can you do, hazel?"],["🧠 Memory","memory","what do you remember about me?"],
+     ["✅ Tasks","tasks","show me my tasks"],["📅 Calendar","cal","what's on my schedule today?"],
+     ["📁 Files","files","find a file for me"],["🔔 Alerts","alerts","any new notifications?"],
+     ["🌐 Search","","research what is machine learning"]].forEach(t=>{
+      const el=document.createElement('div'); el.className='side-link';
+      el.innerHTML=`<span>${t[0]}</span>${t[1]?`<span class="badge">•</span>`:''}`;
+      el.onclick=()=>{ if(t[1]) setTab(t[1]); send(t[2]); }; w.appendChild(el);
+    });
+  }
+
+  /* ---------- tabs ---------- */
+  function setTab(tab){ ['memory','tasks','cal','files','alerts'].forEach(t=>{ $("#tab-"+t).style.display=(t===tab)?'':'none'; });
+    document.querySelectorAll('.panel-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab)); }
+  document.querySelectorAll('.panel-tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+
+  /* ---------- render panels (from state arrays) ---------- */
+  function renderMemory(){
+    const list=$("#memList"); list.innerHTML='';
+    memory.forEach((m)=>{
+      const el=document.createElement('div'); el.className='mem';
+      el.innerHTML=`<span class="tag">${esc(m.tag)}</span><span>${esc(m.text)}</span><span class="del" title="Forget">✕</span>`;
+      el.querySelector('.del').onclick=()=>{
+        if(state.bootMode==='demo'){ memory=memory.filter(x=>x.id!==m.id); save('memory',memory); renderMemory(); addAssistant(`Forgot that. I'll no longer keep: “${esc(m.text)}”.`); }
+        else { api('/api/memory/'+m.id,{method:'DELETE'}).then(()=>{ memory=memory.filter(x=>x.id!==m.id); renderMemory(); addAssistant(`Forgot that. I'll no longer keep: “${esc(m.text)}”.`); }); }
+      };
+      list.appendChild(el);
+    });
+    $("#memCount").textContent=memory.length;
+  }
+  function renderTasks(){
+    const list=$("#taskList"); list.innerHTML='';
+    tasks.forEach(t=>{
+      const el=document.createElement('div'); el.className='task'+(t.done?' done':'');
+      el.innerHTML=`<div class="ck">✓</div><div class="txt">${esc(t.text)}</div><div class="pri ${esc(t.pri)}">${esc(t.pri)}</div>`;
+      el.querySelector('.ck').onclick=()=>{
+        t.done=!t.done;
+        if(state.bootMode==='demo'){ save('tasks',tasks); renderTasks(); }
+        else { api('/api/tasks/'+t.id,{method:'POST',body:{}}).then(r=>{ Object.assign(t,r); renderTasks(); }); }
+      };
+      list.appendChild(el);
+    });
+    $("#taskCount").textContent=tasks.filter(t=>!t.done).length+' open';
+  }
+  function renderCal(){
+    const list=$("#calList"); list.innerHTML='';
+    if(!cal.length){ list.innerHTML=`<div class="empty">No events scheduled.</div>`; return; }
+    cal.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
+      const d=new Date(e.date); const soon=d>new Date()&&(d-new Date())<36e5;
+      const el=document.createElement('div'); el.className='ev'+(soon?' soon':'');
+      el.innerHTML=`<div class="date"><div class="d">${d.getDate()}</div><div class="m">${d.toLocaleString('en',{month:'short'})}</div></div><div class="info"><div class="t">${shortTime(e.date)}</div>${esc(e.title)}${e.tag?` <span class="warn">(${esc(e.tag)})</span>`:''}</div>`;
+      list.appendChild(el);
+    });
+  }
+  function fileIcon(f){ return f.icon || (f.type==='dir'?'📁':(/\.(js|ts|tsx|mjs)$/.test(f.name)?'📄':/\.md$/.test(f.name)?'📝':'📄')); }
+  function renderFiles(){
+    const list=$("#fileList"); list.innerHTML='';
+    if(!files.length){ list.innerHTML=`<div class="empty">No workspace files found.</div>`; return; }
+    files.slice(0,60).forEach(f=>{
+      const el=document.createElement('div'); el.className='file';
+      el.innerHTML=`<div class="fi">${fileIcon(f)}</div><div><div class="fn">${esc(f.name)}</div><div class="fp">${esc(f.path)}${f.size?` · ${fmtBytes(f.size)}`:''}</div></div><div class="tag">${f.type==='dir'?'dir':'file'}</div>`;
+      el.onclick=()=>showFile(f);
+      list.appendChild(el);
+    });
+  }
+  function showFile(f){
+    if(f.type==='dir'){ toast('Files','📁 '+esc(f.path)); return; }
+    if(state.bootMode==='demo'){
+      const c=DEMO.content[f.path+'/'+f.name] || DEMO.content[f.path];
+      if(c) addAssistant(`**${esc(f.path+'/'+f.name)}**\n\n\`\`\`\n${esc(c.slice(0,2000))}\n\`\`\``);
+      else { toast('Files','Preview available in live backend mode.'); addAssistant(`**${esc(f.path+'/'+f.name)}** — reading files after upload requires the live backend. In this demo, this is a sample entry.`); }
+      return;
+    }
+    api('/api/files/read',{method:'POST',body:{path:f.path}}).then(r=>{
+      if(r.content) addAssistant(`**${esc(f.path)}**\n\n\`\`\`\n${esc(r.content.slice(0,2000))}\n\`\`\``);
+      else if(r.dir) toast('Files','Is a directory');
+      else toast('Files','Could not read file.');
+    });
+  }
+  function renderNotifs(){
+    const list=$("#notifList"); list.innerHTML='';
+    if(!notifs.length){ list.innerHTML=`<div class="empty">No notifications.</div>`; return; }
+    notifs.forEach(n=>{ const el=document.createElement('div'); el.className='notif '+n.type;
+      el.innerHTML=`<div class="ni">${n.icon}</div><div><div>${esc(n.text)}</div><div class="nm">${esc(n.from)}</div></div>`; list.appendChild(el); });
+  }
+  function renderAll(){ renderMemory(); renderTasks(); renderCal(); renderFiles(); renderNotifs(); }
+
+  /* ---------- loaders ---------- */
+  function initDemo(){
+    state.bootMode='demo'; state.voiceEngine='browser';
+    $("#voiceEngine").textContent='browser';
+    setStatus('DEMO','demo');
+    updateLlmChip(false);
+    memory = load('memory', DEMO.memory);
+    tasks  = load('tasks',  DEMO.tasks);
+    cal    = load('calendar', DEMO.cal);
+    files  = DEMO.files;
+    notifs = DEMO.notifs;
+    renderAll();
+    $("#verLabel").textContent='v1.1';
+    greeting('demo');
+    // keep trying to upgrade to live every 12s (in case the preview gains network)
+    setInterval(async()=>{
+      if(await detectBackend()){ initLive(true); }
+    }, 12000);
+  }
+  async function initLive(silent){
+    state.bootMode='live';
+    setStatus('ONLINE','');
+    await loadAllLive();
+    updateLlmChip();
+    $("#voiceEngine").textContent = state.voiceEngine==='wait' ? '…' : (state.voiceEngine==='edge'?'neural':state.voiceEngine);
+    if(!silent){ greeting('live'); }
+    else { toast('Connection','✅ Hazel backend connected — live mode.'); }
+  }
+  async function loadAllLive(){
+    try{
+      const [memR, taskR, calR, fileR, notifR, toolsR, health] = await Promise.all([
+        api('/api/memory'), api('/api/tasks'), api('/api/calendar'), api('/api/files'), api('/api/notifications'), api('/api/tools'), api('/api/health')
+      ]);
+      memory=memR.items||[]; tasks=taskR||[]; cal=calR||[]; files=fileR||[]; notifs=notifR||[];
+      renderAll();
+      $("#toolCount").textContent=(toolsR.tools||[]).length;
+      $("#verLabel").textContent='v1.1';
+      if(health){
+        state.voiceEngine = (health.tts&&health.tts.engine)||'browser';
+        $("#voiceEngine").textContent = state.voiceEngine==='edge'?'neural':state.voiceEngine;
+      }
+      console.log('[hazel] live state loaded · engine:', state.voiceEngine);
+    }catch(e){ console.warn('live load failed', e); throw e; }
+  }
+  function updateLlmChip(on, model){
+    const chip=$("#llmChip");
+    if(on){ chip.classList.add('on'); $("#llmModel").textContent=model||'configured'; }
+    else { chip.classList.remove('on'); $("#llmModel").textContent='-'; }
+  }
+
+  /* ---------- chat ---------- */
+  function addMessage(role, html){
+    const m=document.createElement('div'); m.className='msg '+role;
+    const who = role==='user'?'YOU':((MODES[state.mode].label||'ASSISTANT').toUpperCase()+' · HAZEL');
+    m.innerHTML=`<div class="mrow"><div class="who">${who}</div><div class="bubble">${html}</div></div>`;
+    chat.appendChild(m); chat.scrollTop=chat.scrollHeight; return m;
+  }
+  function addUser(text){ return addMessage('user', esc(text)); }
+  function addAssistant(html){ const m=addMessage('assistant', html); speakIf(html); return m; }
+  function typing(hint){
+    const m=document.createElement('div'); m.className='msg assistant';
+    m.innerHTML=`<div class="mrow"><div class="who">${MODES[state.mode].label.toUpperCase()} · HAZEL</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div>${hint?`<div style="font-size:10.5px;color:var(--muted);margin-top:6px">${esc(hint)}</div>`:''}</div></div>`;
+    chat.appendChild(m); chat.scrollTop=chat.scrollHeight; return m;
+  }
+
+  /* ---------- voice ---------- */
+  function speakIfBrowser(plain){
+    if(!('speechSynthesis' in window)) return;
+    try{ speechSynthesis.cancel(); }catch(e){}
+    const u=new SpeechSynthesisUtterance(plain); u.rate=1.02; u.pitch=1.05;
+    try{ const v=speechSynthesis.getVoices().find(v=>/female|samantha|zira|siri/i.test(v.name)); if(v)u.voice=v; }catch(e){}
+    speechSynthesis.speak(u);
+  }
+  async function speakIf(html){
+    if(!state.voiceOn) return;
+    const plain = html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim().slice(0,550).replace(/[\*\#\`\_]/g,'');
+    if(!plain) return;
+    if('speechSynthesis' in window){ try{ speechSynthesis.cancel(); }catch(e){} }
+    if(state.bootMode==='live' && state.voiceEngine && state.voiceEngine!=='browser'){
+      try{
+        const res=await fetch('/api/tts?text='+encodeURIComponent(plain));
+        if(!res.ok) throw new Error('tts '+res.status);
+        const blob=await res.blob(); const url=URL.createObjectURL(blob);
+        if(curAudio){ try{curAudio.pause()}catch(e){} try{URL.revokeObjectURL(curAudio.src)}catch(e){} }
+        const a=new Audio(url); curAudio=a;
+        a.onended=()=>{ try{URL.revokeObjectURL(url)}catch(e){} if(curAudio===a) curAudio=null; };
+        await a.play().catch(()=>{});
+        return;
+      }catch(e){ /* fall through */ }
+    }
+    speakIfBrowser(plain);
+  }
+  $("#voiceBtn").onclick=()=>{
+    state.voiceOn=!state.voiceOn; $("#voiceBtn").classList.toggle('dim',!state.voiceOn);
+    $("#voiceChip").classList.toggle('off',!state.voiceOn);
+    toast('Voice', state.voiceOn?'Voice responses ON 🔊':'Voice responses OFF 🔇');
+  };
+
+  /* ---------- "Hey Hazel" wake word ---------- */
+  const wake={ active:false, armed:false, rec:null };
+  function wakeBeep(){ try{
+    const ctx=new (window.AudioContext||window.webkitAudioContext)();
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine'; o.frequency.value=880; g.gain.value=0.06;
+    o.connect(g); g.connect(ctx.destination); o.start();
+    setTimeout(()=>{ o.stop(); ctx.close(); },260);
+  }catch(e){} }
+  function setWakeUI(armed){
+    const btn=$("#micToggle"); btn.classList.toggle('wake-active', armed);
+    btn.title = armed ? 'Listening for a command…' : 'Toggle “Hey Hazel” wake word';
+    $("#micBtn").classList.toggle('listening', wake.active);
+    const chip=$("#voiceEngine");
+    if(armed) chip.textContent='listening…';
+    else if(state.bootMode==='demo') chip.textContent='browser';
+    else chip.textContent = state.voiceEngine==='edge'?'neural':(state.voiceEngine||'browser');
+  }
+  // When the environment can't give us a microphone, figure out WHY so we can say so.
+  function micUnavailableReason(){
+    const inIframe = (window.self !== window.top);
+    const secure = window.isSecureContext === false ? 'This page is not a secure context (HTTPS/localhost).' : null;
+    if(!(window.SpeechRecognition||window.webkitSpeechRecognition)){
+      return 'This browser doesn\'t support the Web Speech API (speech recognition). Use Chrome or Edge. ' + (inIframe?'Also, the embedded preview blocks the microphone — open Hazel in its own browser tab.':'');
+    }
+    if(!(navigator.mediaDevices && (navigator.mediaDevices.getUserMedia || 'getUserMedia' in navigator))){
+      return 'Microphone access isn\'t available here. ';
+    }
+    if(inIframe){
+      return 'The embedded preview lets scripts run but does NOT allow microphone capture. Open Hazel in its own browser tab (or the live server URL) and click Allow microphone.';
+    }
+    if(secure) return 'This page isn\'t a secure context, so the mic is blocked. Serve over HTTPS or localhost. ';
+    return null;
+  }
+  function startWake(){
+    const noRec = micUnavailableReason();
+    if(noRec){
+      toast('🎙️ Mic blocked', noRec);
+      addAssistant('**🎙️ I can\'t listen here.**\n\n' + esc(noRec) + '\n\nWhen Hazel works in a normal browser tab, click **🎙️ Hey Hazel**, choose **Allow microphone**, and say **“Hey Hazel, what\'s my schedule?”**');
+      return;
+    }
+    const Rec=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const rec=new Rec(); rec.lang='en-US'; rec.continuous=true; rec.interimResults=false;
+    rec.onresult=(event)=>{
+      let s='';
+      for(let i=event.resultIndex;i<event.results.length;i++){ if(event.results[i].isFinal) s+=' '+event.results[i][0].transcript; }
+      s=s.trim(); if(!s) return;
+      const lower=s.toLowerCase();
+      if(!wake.armed){
+        const m=lower.match(/^(hey|hi|ok|okay)?\s*hazel\b[^a-z]*([\s\S]*)$/);
+        if(m){ wake.armed=true; wakeBeep(); setWakeUI(true); const cmd=(m[1]||'').trim();
+          if(cmd.length>=2){ wake.armed=false; setWakeUI(false); send(cmd); }
+          else toast('Hey Hazel','🎤 Listening — say your command'); }
+      } else {
+        const cmd=lower.replace(/^(hey|hi|ok|okay)?\s*hazel[,\s]*/i,'').replace(/^,\s*/,'').trim();
+        if(cmd.length>=2){ wake.armed=false; setWakeUI(false); send(cmd); }
+      }
+    };
+    rec.onend=()=>{ if(wake.active){ try{ rec.start(); }catch(e){} } };
+    rec.onerror=(e)=>{
+      const code = (e && e.error) || '';
+      if(code==='not-allowed' || code==='service-not-allowed'){
+        toast('Mic permission denied', 'Click the lock/allow mic in your browser, then retry. The embedded preview can\'t grant mic access.');
+        stopWake(true);
+      } else if(code==='no-speech'){
+        // silence — keep listening
+      } else if(code==='audio-capture'||code==='network'){
+        toast('Mic issue', 'Speech recognition couldn\'t start (' + code + '). Ensure your mic works and you\'re online.');
+        stopWake(true);
+      }
+    };
+    try{ rec.start(); }catch(e){
+      toast('Mic error', e && e.message ? e.message : 'Could not start the microphone.');
+      return;
+    }
+    wake.rec=rec; wake.active=true; wake.armed=false; setWakeUI(false);
+    $("#micToggle").classList.add('wake-active');
+    toast('Hey Hazel','🟢 Wake mode on — say “Hey Hazel, …”');
+  }
+  function stopWake(silent){
+    if(wake.rec){ try{ wake.rec.stop(); }catch(e){} }
+    wake.active=false; wake.armed=false;
+    $("#micToggle").classList.remove('wake-active'); setWakeUI(false);
+    if(!silent) toast('Hey Hazel','Wake mode off.');
+  }
+  $("#micToggle").onclick=()=>{ wake.active?stopWake():startWake(); };
+
+  /* ---------- mic (one-shot dictation) ---------- */
+  let micOn=false;
+  function toggleMic(){
+    const btn=$("#micBtn");
+    if(micOn){ if(window.__hr)try{window.__hr.stop()}catch(e){}; micOn=false; btn.classList.remove('listening'); return; }
+    const noRec = micUnavailableReason();
+    if(noRec){
+      toast('🎙️ Mic blocked', noRec);
+      addAssistant('**🎙️ I can\'t capture your voice here.**\n\n' + esc(noRec) + '\n\nUse the <span class="accent">type box</span> below, or open Hazel in a browser tab and grant the mic.');
+      return;
+    }
+    const rec=window.SpeechRecognition||window.webkitSpeechRecognition;
+    const r=new rec(); r.lang='en-US'; r.interimResults=false;
+    r.onresult=e=>{ const txt=e.results[0][0].transcript; input.value=txt; send(txt); };
+    r.onend=()=>{ btn.classList.remove('listening'); micOn=false; };
+    r.onerror=(e)=>{ btn.classList.remove('listening'); micOn=false;
+      const code=(e&&e.error)||'';
+      if(code==='not-allowed'||code==='service-not-allowed') toast('Mic denied','Allow microphone access, then retry.');
+      else if(code!=='no-speech') toast('Mic issue','Could not start mic (' + code + ').');
+    };
+    try{ r.start(); }catch(e){ toast('Mic error','Could not start the microphone.'); return; }
+    micOn=true; window.__hr=r; btn.classList.add('listening');
+    toast('Listening','Speak your command…');
+  }
+  $("#micBtn").onclick=toggleMic;
+
+  /* ---------- job runner (live SSE) ---------- */
+  function jobmFor(id){ return document.querySelector('.msg.jobm[data-job="'+id+'"]'); }
+  function startStream(jobId, jobm, handlers){
+    let es;
+    try{ es=new EventSource(API+'/api/stream/'+jobId); }
+    catch(e){ handlers.onResult({reply:'⚠️ Streaming unavailable here.'}); return null; }
+    es.addEventListener('step', e=>{ try{ handlers.onStep(JSON.parse(e.data)); }catch(x){} });
+    es.addEventListener('tool', e=>{ try{ handlers.onTool(JSON.parse(e.data)); }catch(x){} });
+    es.addEventListener('result', e=>{ let d; try{ d=JSON.parse(e.data); }catch(x){ d={}; } try{es.close()}catch(_){ } handlers.onResult(d); });
+    es.onerror=()=>{};
+    return es;
+  }
+  function renderSteps(jobId, jobm, d){
+    const box=jobm.querySelector('#steps-'+jobId); if(!box) return;
+    jobm._steps = jobm._steps||[];
+    let s=jobm._steps.find(x=>x.id===d.id);
+    if(!s){ s={id:d.id}; jobm._steps.push(s);
+      const el=document.createElement('div'); el.className='step pending'; el.dataset.step=d.id;
+      el.innerHTML=`<span class="st">·</span><span>${esc(d.label)}</span>`; box.appendChild(el); }
+    const el=box.querySelector('[data-step="'+d.id+'"]');
+    if(el){ el.className='step '+d.status;
+      el.querySelector('.st').textContent = d.status==='done'?'✓':d.status==='hold'?'⏸':d.status==='error'?'✖':'·';
+      if(d.status==='hold') el.querySelector('.st').style.background='var(--warn)';
+      else if(d.status==='error') el.querySelector('.st').style.background='var(--danger)';
+      else if(d.status==='done'){ el.querySelector('.st').style.background='var(--ok)'; el.querySelector('.st').style.color='#04231a'; } }
+    chat.scrollTop=chat.scrollHeight;
+  }
+  function appendToolTo(jobm, d){
+    if(!jobm) return; const box=jobm.querySelector('.toolsbox'); if(!box) return;
+    const r=document.createElement('div'); r.className='toolrow';
+    r.innerHTML=`<span class="tt">▸ ${esc(d.name)}</span><span class="ts">${esc(d.summary||'')}</span>`;
+    box.appendChild(r); chat.scrollTop=chat.scrollHeight;
+  }
+  function chatJobReplyEl(jobm, reply){
+    let b=jobm.querySelector('.reply');
+    if(!b){ b=document.createElement('div'); b.className='reply'; jobm.querySelector('.bubble').appendChild(b); }
+    b.innerHTML=reply; chat.scrollTop=chat.scrollHeight; return b;
+  }
+  function addApprovalBar(replyEl){
+    const div=document.createElement('div'); div.className='pending-approval';
+    div.innerHTML=`🔐 <b>Action needs your approval.</b> <button class="abtn" id="approveBtn">Approve</button><button class="abtn" id="skipBtn">Skip</button>`;
+    replyEl.appendChild(div);
+    $("#approveBtn").onclick=()=>{ if(!lastJobId) return; toast('Approving','Executing approved action…');
+      api('/api/approve',{method:'POST',body:{jobId:lastJobId}}).then(()=>readApprovedResult(lastJobId)).catch(e=>toast('Approval','Failed: '+e.message)); };
+    $("#skipBtn").onclick=()=>{ div.remove(); toast('Approval','Skipped.'); };
+  }
+  function readApprovedResult(jobId){
+    const jobm=jobmFor(jobId); if(!jobm) return;
+    startStream(jobId, jobm, {
+      onStep:(d)=>renderSteps(jobId, jobm, d),
+      onTool:(d)=>appendToolTo(jobm, d),
+      onResult:(d)=>{ chatJobReplyEl(jobm, d.reply); loadAllLive().catch(()=>{}); }
+    });
+  }
+  function sendLive(text){
+    addUser(text);
+    const t=typing('Sending to Hazel…');
+    api('/api/hazel',{method:'POST',body:{message:text, mode:state.mode}}).then(({jobId})=>{
+      if(!jobId){ t.remove(); addAssistant('⚠️ Backend did not return a job.'); busy=false; return; }
+      lastJobId=jobId; t.remove();
+      const jobm=document.createElement('div'); jobm.className='msg assistant jobm'; jobm.dataset.job=jobId;
+      jobm.innerHTML=`<div class="mrow"><div class="who">${MODES[state.mode].label.toUpperCase()} · HAZEL</div><div class="bubble"><b>Hazel is working…</b><div class="steps" id="steps-${jobId}"></div><div class="toolsbox"></div><div class="reply"></div></div></div>`;
+      chat.appendChild(jobm); chat.scrollTop=chat.scrollHeight;
+      startStream(jobId, jobm, {
+        onStep:(d)=>renderSteps(jobId, jobm, d),
+        onTool:(d)=>appendToolTo(jobm, d),
+        onResult:(d)=>{ const out=chatJobReplyEl(jobm, d.reply); if(d.held) addApprovalBar(out); busy=false; loadAllLive().catch(()=>{}); }
+      });
+    }).catch(e=>{ t.remove(); addAssistant('⚠️ '+esc(e.message)); busy=false; });
+  }
+
+  /* ---------- local demo orchestrator ---------- */
+  function demoAnswer(m){
+    const low=m.toLowerCase();
+    const has=(...re)=>re.some(r=>r.test(low));
+    const nextEvent=()=>cal.filter(e=>new Date(e.date)>new Date()).sort((a,b)=>a.date.localeCompare(b.date))[0];
+    const open=tasks.filter(t=>!t.done);
+    if(has(/^(hi|hey|hello|yo|good (morning|afternoon|evening))\b/i)){
+      const part=new Date().getHours(); const g=part<12?'morning':part<16?'afternoon':part<20?'evening':'night';
+      return `Good ${g} — I'm Hazel (local demo). You have **${open.length} open task(s)** and your next event is **${esc(nextEvent()?nextEvent().title:'nothing scheduled')}** (${esc(nextEvent()?shortTime(nextEvent().date):'—')}).\n\nAsk me about your <span class="hl">schedule</span>, <span class="hl">tasks</span>, <span class="hl">memory</span>, or <span class="hl">search</span> files.`;
+    }
+    if(has(/help|what can you do|capabilities|features/)) return `**Here's what I can do:**\n\n<ul><li><span class="hl">🌐 Research</span> (needs the live backend for real results)</li><li><span class="hl">🧠 Memory</span> — remember & recall</li><li><span class="hl">📁 Files</span> — browse & search this workspace</li><li><span class="hl">📅 Organize</span> — tasks & calendar</li><li><span class="hl">🚀 Orchestrate</span> — multi-step jobs</li></ul>\n\nThis is **demo mode** (no backend): research/commands run live when connected. Everything else works now.`;
+    if(has(/what do you remember|what do you know about me|preferences/)){ return memoryReplyDemo(); }
+    if(has(/remember|note that|i (prefer|like|love|use|need)/i) && !has(/what do you remember/)){
+      let fact=m.replace(/(remember that|remember|note that|i prefer|i like|i love|i use|i need|i am using)\s*/i,'').replace(/^what do you remember\s*/i,'').trim();
+      if(fact.length<4) return `What should I remember? e.g. “remember that I prefer dark mode.”`;
+      memory.push({id:'dm'+Date.now(),tag:guessTag(m),text:fact}); save('memory',memory); renderMemory();
+      return `**🧠 Got it.** I'll remember: “${esc(fact)}”. Say “what do you remember?” anytime.`;
+    }
+    if(has(/prepare|set up my (workspace|work)|everything i need|going to work|i'm working/i)) return orchestrateDemo('prepare');
+    if(has(/continue my project|where did i leave off|resume|continue/i)) return orchestrateDemo('continue');
+    if(has(/summary of my project|project status|how.*project.*doing/i)) return statusDemo();
+    if(has(/schedule|calendar|agenda|my day|today|meeting/i)) return `**📅 Here's what's coming up:**\n\n` + cal.slice().sort((a,b)=>a.date.localeCompare(b.date)).map(e=>`- <span class="hl">${shortTime(e.date)}</span> ${esc(e.title)} ${e.tag?`<span class="warn">(${esc(e.tag)})</span>`:''}`).join('\n');
+    if(has(/task|to.?do|remind/)){
+      const add=m.match(/add (?:a )?task (.*)/i)||m.match(/remind me to (.*)/i);
+      if(add&&add[1]){ tasks.push({id:'dt'+Date.now(),text:add[1],done:false,pri:'med'}); save('tasks',tasks); renderTasks(); return `**✅ Added task:** “${esc(add[1])}”.`; }
+      return `**You have ${open.length} open task(s):**\n\n` + open.map(t=>`- [${esc(t.pri)}] ${esc(t.text)}`).join('\n');
+    }
+    if(has(/(find|search|where (is|are)|locate).*(file|doc|folder|project)|find /i)){
+      const q=(m.match(/(?:find|search for|search|where (?:is|are)|locate)\s+(?:(?:the|a)\s+)?(.+)/i)||[])[1]||'';
+      const hits=q?files.filter(f=>(f.name+' '+f.path).toLowerCase().includes(q.toLowerCase())):files;
+      if(!hits.length) return `**🔍 No match for “${esc(q)}”.** Showing workspace:\n\n` + files.slice(0,6).map(f=>`- ${fileIcon(f)} ${esc(f.path)}`).join('\n');
+      return `**🔍 Found ${hits.length}:**\n\n` + hits.slice(0,8).map(f=>`- ${fileIcon(f)} <code>${esc(f.path)}${f.type==='file'?'/'+esc(f.name):''}</code>${f.size?` (${fmtBytes(f.size)})`:''}`).join('\n');
+    }
+    if(has(/notif|alerts|anything (new|important)/i)) return `**🔔 ${notifs.length} notifications:**\n\n` + notifs.map(n=>`- ${n.icon} ${esc(n.text)} <span class="muted">(${esc(n.from)})</span>`).join('\n');
+    if(has(/what time|current time|what day|today's date/i)){ const d=new Date(); return `**🕐 It's ${d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}** — ${d.toLocaleDateString('en-GB',{weekday:'long',day:'numeric',month:'long',year:'numeric'})}.`; }
+    if(has(/research|search (google|the web)|what is|what's|explain|who is/)){
+      return `I'd run that as a <span class="hl">real web search</span>, which needs the live backend. Right now I'm in <b>demo mode</b>.\n\nOpen Hazel through the running server (<code>node server.mjs</code>) and I'll return cited results. Or ask me something I can do here: <span class="accent">search files</span>, <span class="accent">show tasks</span>, <span class="accent">what do you remember?</span>`;
+    }
+    return `I read that as **“${esc(m)}”** (${esc(MODES[state.mode].label)} mode, demo). Try <span class="accent">help</span>, or on the live backend ask for a <span class="hl">web search</span>.`;
+  }
+  function memoryReplyDemo(){
+    if(!memory.length) return "I'm not keeping any facts yet. Try “remember that I prefer dark mode.”";
+    return `**🧠 I'm keeping ${memory.length} fact(s).**\n\n` + memory.map(x=>`- <span class="hl">[${esc(x.tag)}]</span> ${esc(x.text)}`).join('\n');
+  }
+  function orchestrateDemo(kind){
+    const steps = kind==='prepare'
+      ? ['Checking your calendar','Reviewing notifications','Scanning your workspace (Orion)','Reading project notes','Checking the time']
+      : ['Recalling project context','Locating the Orion project','Reading last-session notes'];
+    const labels=''; // step container handled by caller for animation
+    const done = kind==='prepare'
+      ? `**✅ Ready.** ${cal.length} items today${nextEvent()?` · next ${esc(nextEvent().title)} at ${shortTime(nextEvent().date)}`:''}. Workspace <code>orion</code> loaded with ${files.filter(f=>f.type==='file').length} files. Dev services staged.\n\nWant me to <span class="hl">continue the Orion project</span> or <span class="hl">run the test suite</span>?`
+      : `**Here's where you left off.**\n\n🧠 From memory: ${memory.filter(x=>/orion|anon|demo/i.test(x.text)).map(x=>`“${esc(x.text)}”`).join(' · ') || 'no saved notes'}\n\n🛠 Orion: ${files.filter(f=>f.type==='file').map(f=>`<code>${esc(f.path)}</code>`).join(', ')}\n\nI'd suggest finishing the <span class="hl">auth refactor</span> → <span class="hl">run tests</span> → prep the Friday demo. Where should we start?`;
+    return { steps, done };
+  }
+  function statusDemo(){
+    const open=tasks.filter(t=>!t.done);
+    return `**📊 Orion — project status**\n\n- **Source files:** ${files.filter(f=>f.type==='file').length}\n- **Open tasks:** ${open.length} (${open.filter(t=>t.pri==='high').length} high)\n\nFrom README: ${esc((DEMO.content['orion/README.md']||'').split('\n')[1]||'demo due Friday')}\n\nWhich should I dig into — <span class="hl">status</span>, <span class="hl">tasks</span>, or <span class="hl">search files</span>?`;
+  }
+  function guessTag(m){ const l=m.toLowerCase(); if(/prefer|like|love|favourite|favorite/.test(l)) return 'pref'; if(/project|orion|app|build/.test(l)) return 'project'; if(/meeting|stand.?up|call/.test(l)) return 'work'; return 'you'; }
+  function sendDemo(text){
+    addUser(text);
+    const t=typing();
+    setTimeout(()=>{
+      const ans=demoAnswer(text);
+      if(typeof ans==='string'){ t.remove(); addAssistant(ans); busy=false; return; }
+      // orchestration with animated steps
+      const jobm=document.createElement('div'); jobm.className='msg assistant jobm';
+      jobm.innerHTML=`<div class="mrow"><div class="who">${MODES[state.mode].label.toUpperCase()} · HAZEL</div><div class="bubble"><b>Hazel is working…</b><div class="steps" id="steps-demo"></div><div class="reply"></div></div></div>`;
+      chat.appendChild(jobm); t.remove();
+      if(jobm.previousSibling===t) {} // ignore
+      const box=jobm.querySelector('#steps-demo');
+      ans.steps.forEach((step,i)=>{
+        const el=document.createElement('div'); el.className='step pending'; el.dataset.step='d'+i;
+        el.innerHTML=`<span class="st">·</span><span>${esc(step)}</span>`; box.appendChild(el);
+        setTimeout(()=>{ el.className='step running'; }, i*600);
+        setTimeout(()=>{ el.className='step done'; el.querySelector('.st').textContent='✓'; el.querySelector('.st').style.background='var(--ok)'; el.querySelector('.st').style.color='#04231a';
+          if(i===ans.steps.length-1){ chatJobReplyEl(jobm, ans.done); busy=false; } }, i*600+350);
+      });
+    }, 450);
+  }
+
+  /* ---------- send (dispatch by mode) ---------- */
+  function send(text){
+    text=(text||'').trim(); if(!text||busy) return; busy=true;
+    input.value=''; input.style.height='auto';
+    if(state.bootMode==='demo'){ sendDemo(text); return; }
+    sendLive(text);
+  }
+
+  /* ---------- composer ---------- */
+  input.addEventListener('keydown', e=>{ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); send(input.value); } });
+  input.addEventListener('input', ()=>{ input.style.height='auto'; input.style.height=Math.min(input.scrollHeight,120)+'px'; });
+  $("#sendBtn").onclick=()=>send(input.value);
+  document.querySelectorAll('.nav .side-link[data-cmd]').forEach(el=>el.onclick=()=>send(el.dataset.cmd));
+
+  /* ---------- global search (works in both modes) ---------- */
+  $("#globalSearch").addEventListener('keydown', async e=>{
+    if(e.key==='Enter'){ const q=$("#globalSearch").value.trim(); if(!q) return; $("#searchHint").textContent='…';
+      if(state.bootMode==='demo'){
+        const hits=files.filter(f=>(f.name+' '+f.path).toLowerCase().includes(q.toLowerCase()));
+        $("#searchHint").textContent=hits.length+' match';
+        addAssistant(`**Search — “${esc(q)}”**\n\n` + (hits.length? hits.slice(0,6).map(f=>`- ${fileIcon(f)} <code>${esc(f.path)}${f.type==='file'?'/'+esc(f.name):''}</code>`).join('\n') : 'No matches.'));
+      } else {
+        setTab('files');
+        const r=await api('/api/files/search',{method:'POST',body:{query:q}});
+        const items=r.items||[]; $("#searchHint").textContent=items.length+' match';
+        if(items.length){ files=items.map(f=>({name:f.name,path:f.path,type:f.type==='dir'?'dir':'file',size:f.size,icon:f.icon})); renderFiles();
+          addAssistant(`Found <span class="hl">${items.length}</span> for “${esc(q)}”: ${items.slice(0,5).map(f=>`<code>${esc(f.path)}</code>`).join(', ')}`); }
+        else addAssistant(`No files matched “${esc(q)}”.`);
+      }
+    } else if(e.key==='Escape'){ $("#globalSearch").value=''; $("#searchHint").textContent=''; }
+  });
+
+  /* ---------- modal ---------- */
+  function openModal(o){ $("#mTitle").innerHTML=o.title; $("#mDesc").innerHTML=o.desc; $("#mLabel").textContent=o.label||'Value';
+    $("#mInput").value=''; $("#mInput").placeholder=o.placeholder||'Enter a value'; $("#mSelectField").style.display=o.select?'':'none';
+    $("#overlay").classList.add('show'); setTimeout(()=>$("#mInput").focus(),50); $("#mSave").onclick=()=>o.onSave($("#mInput").value); }
+  $("#mCancel").onclick=()=>$("#overlay").classList.remove('show');
+  $("#addMemBtn").onclick=()=>openModal({title:'Add to memory',desc:'Hazel will keep this fact about you.',label:'Fact',placeholder:'e.g. I prefer dark mode in my editor',
+    onSave:async v=>{ if(v.trim()){
+      if(state.bootMode==='demo'){ memory.push({id:'dm'+Date.now(),tag:'you',text:v.trim()}); save('memory',memory); renderMemory(); }
+      else { const r=await api('/api/memory',{method:'POST',body:{text:v.trim()}}); memory.push(r); renderMemory(); }
+      addAssistant(`Saved to memory: <span class="hl">“${esc(v.trim())}”</span>.`); } $("#overlay").classList.remove('show'); }});
+  $("#clearMemBtn").onclick=async()=>{ if(!confirm('Clear all remembered facts?'))return;
+    if(state.bootMode==='demo'){ memory=[]; save('memory',memory); }
+    else { for(const x of memory) await api('/api/memory/'+x.id,{method:'DELETE'}); }
+    memory=[]; renderMemory(); addAssistant('Memory cleared.'); };
+  $("#addTaskBtn").onclick=()=>openModal({title:'New task',desc:'Add to your task list.',label:'Task',placeholder:'e.g. Fix auth bug',
+    onSave:async v=>{ if(v.trim()){
+      if(state.bootMode==='demo'){ tasks.push({id:'dt'+Date.now(),text:v.trim(),done:false,pri:'med'}); save('tasks',tasks); }
+      else { const r=await api('/api/tasks',{method:'POST',body:{text:v.trim()}}); tasks.push(r); }
+      renderTasks(); addAssistant(`Added task: <span class="hl">“${esc(v.trim())}”</span>.`); } $("#overlay").classList.remove('show'); }});
+  $("#permBtn").onclick=()=>openModal({title:'Permissions & approvals',desc:'Hazel only acts on what you approve. Every sensitive action is gated and logged.',label:'Approval policy',placeholder:'e.g. always ask before running commands',select:true,
+    onSave:()=>{ toast('Permissions','Policy: always ask before executing. Logged.'); $("#overlay").classList.remove('show'); }});
+
+  /* ---------- waveform / gauges ---------- */
+  function buildWave(el,n){ el.innerHTML=''; for(let i=0;i<n;i++){ const b=document.createElement('i'); b.style.animationDelay=(i*0.06)+'s'; b.style.animationDuration=(0.9+Math.random()*0.5)+'s'; el.appendChild(b);} }
+  buildWave($("#headerWave"),26); buildWave($("#avatarWave"),5);
+  function animateGauges(){ const g={gCpu:[20,20,70],gMem:[35,25,80],gNet:[45,15,95]}; Object.keys(g).forEach(id=>{ const bar=$("#"+id+" .bar i"); const [base,min,max]=g[id]; bar.style.width=Math.min(max,Math.max(min,base+(Math.random()*14-7)))+'%'; }); }
+  animateGauges(); setInterval(animateGauges,1800);
+
+  /* ---------- greeting ---------- */
+  function greeting(mode){
+    const blurb = mode==='live'
+      ? `<b>Hazel Core is online — live backend.</b> I do <span class="hl">real web research</span>, keep <span class="hl">persistent memory</span>, manage tasks &amp; calendar, scan your workspace, and <span class="hl">chain steps with your approval</span>.`
+      : `<b>Hazel Core — local demo mode.</b> I'm running without the server, so everything here works <span class="hl">offline</span>: search, memory, tasks, calendar, files and chat. Start the backend (<code>node server.mjs</code>) for <span class="hl">live web research</span>, real commands and neural voice.`;
+    addAssistant(blurb);
+    addAssistant(`Try: <ul><li><span class="accent">“what's on my schedule today?”</span></li><li><span class="accent">“show me my tasks”</span></li><li><span class="accent">“what do you remember about me?”</span></li><li><span class="accent">“find auth file”</span></li>${mode==='live'?`<li><span class="accent">“research what is machine learning”</span></li>`:''}</ul>`);
+  }
+
+  /* ---------- boot ---------- */
+  renderModes(); renderToolLinks(); setTab('memory');
+  (async function boot(){
+    const up = await detectBackend();
+    if(up){ initLive(); } else { initDemo(); }
+  })();
+})();
+
+</script>
+</body>
+</html>

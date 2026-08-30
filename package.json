@@ -1,0 +1,7 @@
+{
+  "name": "orion-dashboard",
+  "version": "0.6.4",
+  "description": "Real-time analytics dashboard (demo project for Hazel)",
+  "main": "src/app.js",
+  "scripts": { "dev": "node src/app.js", "test": "node src/services/auth.test.js" }
+}

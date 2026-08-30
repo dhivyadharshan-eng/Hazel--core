@@ -1,0 +1,22 @@
+{
+  "rootDir": "./workspace",
+  "approvedCommands": ["git status", "git log --oneline -5", "ls", "node --test", "npm test", "cat", "grep"],
+  "autoApproveWrites": false,
+  "llm": {
+    "provider": "openai-compatible",
+    "model": "gpt-4o-mini",
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKeyEnv": "HAZEL_OPENAI_API_KEY"
+  },
+  "tts": {
+    "provider": "edge",
+    "voice": "en-US-JennyNeural",
+    "model": "tts-1",
+    "openaiVoice": "alloy",
+    "apiKeyEnv": "HAZEL_OPENAI_API_KEY"
+  },
+  "web": {
+    "maxResults": 4,
+    "maxPageChars": 3000
+  }
+}

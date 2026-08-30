@@ -1,0 +1,6 @@
+[
+  {"id": "n1", "type": "ok",    "icon": "✅", "text": "CI passed for orion-dashboard", "from": "GitHub", "ts": "2026-08-30T08:05:00Z"},
+  {"id": "n2", "type": "alert", "icon": "⚠️", "text": "Deploy pipeline warning: us-east-1 latency", "from": "CloudWatch", "ts": "2026-08-30T08:12:00Z"},
+  {"id": "n3", "type": "warn",  "icon": "🗓️", "text": "Stand-up in 10 minutes", "from": "Calendar", "ts": "2026-08-30T09:50:00Z"},
+  {"id": "n4", "type": "ok",    "icon": "📨", "text": "Priya replied: “looks great, ship it”", "from": "Mail", "ts": "2026-08-30T08:30:00Z"}
+]

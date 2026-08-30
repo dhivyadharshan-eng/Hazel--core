@@ -1,0 +1,6 @@
+[
+  {"id": "t1", "text": "Refactor auth module (Orion)", "done": false, "pri": "high"},
+  {"id": "t2", "text": "Review PR #184 — data layer", "done": false, "pri": "med"},
+  {"id": "t3", "text": "Prepare demo for Friday review", "done": false, "pri": "med"},
+  {"id": "t4", "text": "Respond to Priya's email", "done": true, "pri": "low"}
+]
